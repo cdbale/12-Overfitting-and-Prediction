@@ -1,0 +1,150 @@
+---
+title: "Exercise 13"
+author: "Marc Dotson"
+format: docx
+---
+
+Return to `soup_data` and the models from the previous exercise.
+
+1. Split the data with 0.90 of the data in the training data *in order* using `initial_time_split()`.
+2. Fit the models again on the training data.
+3. Compute the RMSE using the testing data.
+4. Identify the best-fitting model based on $R^2$, Adjusted $R^2$, and RMSE. Is it the same? Why or why not?
+5. Render the Quarto document into Word and upload to Canvas.
+
+**Five points total, one point each for:**
+
+- **Splitting the data with 0.90 of the data in the training data *in order* using `initial_time_split()`.**
+- **Fitting all four models again using the training data.**
+- **Computing the RMSE using the testing data for each model.**
+- **Identifying the best-fitting model and discussing if they are the same across metrics and considering why or why not.**
+- **One point for submitting a rendered Word document.**
+
+## Split the Data
+
+Let's load the packages we'll need, import the data, and split the data as specified.
+
+```{r}
+# Load packages.
+library(tidyverse)
+library(tidymodels)
+
+# Import and filter data.
+soup_data <- read_csv(here::here("Data", "soup_data.csv")) |> 
+  filter(Retailer_Trade_Areas == "WEST CENSUS TA", Brand_High == "CAMPBELL'S")
+
+# Split the data.
+soup_split <- initial_time_split(soup_data, prop = 0.90)
+```
+
+## Fit the Models
+
+Now let's refit the models we ran previously.
+
+```{r}
+# Full model.
+fit_01 <- linear_reg() |> 
+  set_engine(engine = "lm") |> 
+  fit(
+    Sales ~ Any_Disp_Spend + Any_Feat_Spend + Any_Price_Decr_Spend, 
+    data = training(soup_split)
+  )
+
+# Model without display spend.
+fit_02 <- linear_reg() |> 
+  set_engine(engine = "lm") |> 
+  fit(
+    Sales ~ Any_Feat_Spend + Any_Price_Decr_Spend, 
+    data = training(soup_split)
+  )
+
+# Model without feature spend.
+fit_03 <- linear_reg() |> 
+  set_engine(engine = "lm") |> 
+  fit(
+    Sales ~ Any_Disp_Spend + Any_Price_Decr_Spend, 
+    data = training(soup_split)
+  )
+
+# Model without price decrease spend.
+fit_04 <- linear_reg() |> 
+  set_engine(engine = "lm") |> 
+  fit(
+    Sales ~ Any_Disp_Spend + Any_Feat_Spend, 
+    data = training(soup_split)
+  )
+```
+
+## Overall Model Fit
+
+Now let's compute and compare RMSE, as well as R-squared and the Adjusted R-squared.
+
+```{r}
+# Compute RMSE.
+rmse_01 <- fit_01 |> 
+  predict(new_data = testing(soup_split)) |>
+  bind_cols(testing(soup_split)) |>
+  rmse(truth = Sales, estimate = .pred)
+
+rmse_02 <- fit_02 |> 
+  predict(new_data = testing(soup_split)) |>
+  bind_cols(testing(soup_split)) |>
+  rmse(truth = Sales, estimate = .pred)
+
+rmse_03 <- fit_03 |> 
+  predict(new_data = testing(soup_split)) |>
+  bind_cols(testing(soup_split)) |>
+  rmse(truth = Sales, estimate = .pred)
+
+rmse_04 <- fit_04 |> 
+  predict(new_data = testing(soup_split)) |>
+  bind_cols(testing(soup_split)) |>
+  rmse(truth = Sales, estimate = .pred)
+
+# Compare RMSEs.
+tibble(
+  model = c(
+    "Full model", 
+    "Model without display spend", 
+    "Model without feature spend", 
+    "Model without price decrease spend"
+  )
+) |> 
+  bind_cols(
+    bind_rows(
+      rmse_01,
+      rmse_02,
+      rmse_03,
+      rmse_04
+    )
+  ) |> 
+  arrange(.estimate)
+```
+
+Based on RMSE, the best-fitting model is the model with all three explanatory variables -- the "full model."
+
+```{r}
+# Model comparison.
+tibble(
+  model = c(
+    "Full model", 
+    "Model without display spend", 
+    "Model without feature spend", 
+    "Model without price decrease spend"
+  )
+) |> 
+  bind_cols(
+    bind_rows(
+      glance(fit_01), 
+      glance(fit_02), 
+      glance(fit_03), 
+      glance(fit_04)
+    )
+  ) |> 
+  arrange(desc(r.squared))
+```
+
+According to R-squared and Adjusted R-squared, the "full model" that includes all three of the explanatory variables fits best.
+
+The fact that RMSE identifies the same best-fitting model as R-squared and Adjusted R-squared suggests that the "full model" isn't overfitting the data. That might not be surprising since the "full model" only has three explanatory variables.
+
